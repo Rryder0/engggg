@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWP09 英文聽讀 APP</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .recording-pulse {
+            animation: pulse-ring 1.5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white/10 p-2.5 rounded-xl backdrop-blur-sm">
+                    <i class="fa-solid fa-headphones-simple text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">SWP09 英文聽讀 APP</h1>
+                    <p class="text-xs text-indigo-200">Web Speech API 聽力跟讀與發音比對系統</p>
+                </div>
+            </div>
+            <nav class="flex items-center space-x-2 bg-indigo-700/60 p-1 rounded-xl backdrop-blur-sm">
+                <button onclick="switchTab('practice')" id="nav-practice" class="px-4 py-2 rounded-lg text-sm font-medium transition bg-white text-indigo-700 shadow-sm">
+                    <i class="fa-solid fa-graduation-cap mr-1.5"></i> 聽讀練習
+                </button>
+                <button onclick="switchTab('vocab')" id="nav-vocab" class="px-4 py-2 rounded-lg text-sm font-medium transition text-indigo-100 hover:text-white">
+                    <i class="fa-solid fa-book-open mr-1.5"></i> 單字庫
+                </button>
+                <button onclick="switchTab('stats')" id="nav-stats" class="px-4 py-2 rounded-lg text-sm font-medium transition text-indigo-100 hover:text-white">
+                    <i class="fa-solid fa-chart-pie mr-1.5"></i> 學習統計
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-8">
+
+        <!-- TAB 1: PRACTICE -->
+        <section id="tab-practice" class="space-y-6">
+            <!-- Top Controls: Category & Mode -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center space-x-3">
+                    <label for="category-select" class="text-sm font-semibold text-slate-600">選擇主題：</label>
+                    <select id="category-select" onchange="changeCategory()" class="bg-slate-100 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs font-semibold px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full">
+                        進度: <span id="current-index">1</span> / <span id="total-count">0</span>
+                    </span>
+                    <button onclick="resetSessionProgress()" class="text-xs text-slate-500 hover:text-indigo-600 px-3 py-1.5 rounded-lg border border-slate-200 transition">
+                        <i class="fa-solid fa-rotate-right mr-1"></i>重置進度
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active Card Display -->
+            <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden transition-all duration-300">
+                <div class="p-8 sm:p-12 text-center space-y-6">
+                    <!-- Word / Phrase Target -->
+                    <div class="space-y-2">
+                        <span id="card-category-badge" class="inline-block px-3 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-full uppercase tracking-wider">Category</span>
+                        <h2 id="target-word" class="text-4xl sm:text-6xl font-extrabold text-slate-900 tracking-tight">Loading...</h2>
+                        <p id="target-translation" class="text-lg sm:text-xl text-slate-500 font-medium">請稍候...</p>
+                    </div>
+
+                    <!-- Example Sentence -->
+                    <div class="max-w-xl mx-auto bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left space-y-1">
+                        <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wide">例句示範</div>
+                        <p id="target-example" class="text-slate-700 text-sm sm:text-base"></p>
+                    </div>
+
+                    <!-- Speech Controls / Action Buttons -->
+                    <div class="flex flex-wrap justify-center items-center gap-4 pt-4">
+                        <button onclick="playTargetAudio()" class="flex items-center space-x-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-3.5 rounded-2xl font-semibold transition shadow-sm active:scale-95">
+                            <i class="fa-solid fa-volume-high text-lg"></i>
+                            <span>聆聽發音</span>
+                        </button>
+                        <button id="mic-btn" onclick="toggleSpeechRecognition()" class="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl font-semibold transition shadow-lg shadow-indigo-200 active:scale-95">
+                            <i class="fa-solid fa-microphone text-lg" id="mic-icon"></i>
+                            <span id="mic-text">按住或點擊跟讀</span>
+                        </button>
+                    </div>
+
+                    <!-- Recognition Feedback Box -->
+                    <div id="feedback-container" class="hidden max-w-md mx-auto mt-6 p-5 rounded-2xl transition-all duration-300 border">
+                        <div class="flex items-center justify-center space-x-2 mb-2">
+                            <i id="feedback-icon" class="fa-solid text-xl"></i>
+                            <h3 id="feedback-title" class="font-bold text-lg">比對結果</h3>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-1">您說的內容：</p>
+                        <p id="recognized-text" class="text-base font-semibold text-slate-800 bg-white/60 py-1.5 px-3 rounded-lg inline-block border border-slate-200/60">-</p>
+                        <p id="feedback-message" class="text-sm mt-3 font-medium"></p>
+                    </div>
+                </div>
+
+                <!-- Card Navigation Footer -->
+                <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-between items-center">
+                    <button onclick="prevCard()" class="flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-200/60 transition">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        <span>上一個</span>
+                    </button>
+                    <div class="flex space-x-1" id="pagination-dots">
+                        <!-- Dots populated dynamically -->
+                    </div>
+                    <button onclick="nextCard()" class="flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-sm">
+                        <span>下一個</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: VOCABULARY LIST -->
+        <section id="tab-vocab" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">單字與片語字庫</h2>
+                    <p class="text-sm text-slate-500">瀏覽清單、點擊喇叭即可聆聽正確發音，或新增自訂單字。</p>
+                </div>
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <input type="text" id="search-vocab" placeholder="搜尋單字或中文..." oninput="filterVocabList()" class="bg-slate-100 border-none rounded-xl px-4 py-2.5 text-sm w-full md:w-64 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <button onclick="openAddModal()" class="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition">
+                        <i class="fa-solid fa-plus mr-1"></i> 新增單字
+                    </button>
+                </div>
+            </div>
+
+            <!-- Vocabulary Table / Cards Grid -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                <th class="p-4">單字 / 片語</th>
+                                <th class="p-4">中文解釋</th>
+                                <th class="p-4">主題分類</th>
+                                <th class="p-4">練習狀況</th>
+                                <th class="p-4 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vocab-table-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: STATISTICS -->
+        <section id="tab-stats" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="bg-indigo-50 text-indigo-600 p-4 rounded-2xl text-2xl">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">總練習次數</p>
+                        <h3 id="stat-total-attempts" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="bg-emerald-50 text-emerald-600 p-4 rounded-2xl text-2xl">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">念對次數</p>
+                        <h3 id="stat-correct-count" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="bg-amber-50 text-amber-600 p-4 rounded-2xl text-2xl">
+                        <i class="fa-solid fa-percent"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">平均正確率</p>
+                        <h3 id="stat-accuracy" class="text-2xl font-bold text-slate-900">0%</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="bg-purple-50 text-purple-600 p-4 rounded-2xl text-2xl">
+                        <i class="fa-solid fa-award"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">精熟單字數</p>
+                        <h3 id="stat-mastered" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed breakdown -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                <h3 class="text-lg font-bold text-slate-900">練習建議與成就</h3>
+                <div id="stats-advice" class="p-4 bg-indigo-50/60 rounded-xl text-indigo-900 text-sm leading-relaxed border border-indigo-100">
+                    載入中...
+                </div>
+                <div class="pt-4 flex justify-end">
+                    <button onclick="clearStats()" class="text-xs text-rose-600 hover:text-rose-700 font-semibold px-4 py-2 rounded-lg border border-rose-200 transition">
+                        <i class="fa-solid fa-trash-can mr-1.5"></i> 清除統計紀錄
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="add-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-6 border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-slate-900">新增自訂單字 / 片語</h3>
+                <button onclick="closeAddModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="add-vocab-form" onsubmit="saveCustomVocab(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">英文單字或片語 *</label>
+                    <input type="text" id="new-word" required placeholder="e.g. Artificial Intelligence" class="w-full bg-slate-100 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">中文解釋 *</label>
+                    <input type="text" id="new-translation" required placeholder="e.g. 人工智慧" class="w-full bg-slate-100 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">主題分類</label>
+                    <select id="new-category" class="w-full bg-slate-100 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="自訂單字庫">自訂單字庫</option>
+                        <option value="職場生活">職場生活</option>
+                        <option value="日常對話">日常對話</option>
+                        <option value="科技趨勢">科技趨勢</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">例句</label>
+                    <textarea id="new-example" rows="2" placeholder="e.g. Artificial Intelligence is transforming the world." class="w-full bg-slate-100 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                </div>
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="closeAddModal()" class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold text-sm transition">取消</button>
+                    <button type="submit" class="w-1/2 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-semibold text-sm transition shadow-sm">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Default Dataset
+        const defaultVocabulary = [
+            { id: 1, word: "Artificial Intelligence", translation: "人工智慧", category: "科技趨勢", example: "Artificial Intelligence is transforming modern industries.", status: "untested" },
+            { id: 2, word: "Productivity", translation: "生產力", category: "職場生活", example: "Good time management boosts daily productivity.", status: "untested" },
+            { id: 3, word: "Sustainability", translation: "永續性", category: "科技趨勢", example: "Corporate sustainability is crucial for our future.", status: "untested" },
+            { id: 4, word: "Collaboration", translation: "合作、協力", category: "職場生活", example: "Successful projects require close team collaboration.", status: "untested" },
+            { id: 5, word: "How's it going?", translation: "最近過得如何？", category: "日常對話", example: "Hey John! How's it going?", status: "untested" },
+            { id: 6, word: "Break a leg", translation: "祝你演出成功！", category: "日常對話", example: "Break a leg on your presentation today!", status: "untested" },
+            { id: 7, word: "Innovation", translation: "創新", category: "科技趨勢", example: "Continuous innovation keeps the company competitive.", status: "untested" },
+            { id: 8, word: "Networking", translation: "建立人脈", category: "職場生活", example: "Conferences are great places for professional networking.", status: "untested" }
+        ];
+
+        // State variables
+        let vocabulary = JSON.parse(localStorage.getItem('swp09_vocab')) || defaultVocabulary;
+        let stats = JSON.parse(localStorage.getItem('swp09_stats')) || { totalAttempts: 0, correctCount: 0 };
+        let currentCategory = 'all';
+        let filteredVocabulary = [];
+        let currentIndex = 0;
+        let isRecording = false;
+        let recognition = null;
+
+        // Initialize Speech Recognition if available
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn("Speech Recognition API not supported in this browser.");
+                return;
+            }
+            recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                const speechResult = event.results[0][0].transcript;
+                processRecognitionResult(speechResult);
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+                stopRecordingUI();
+                showFeedback(false, "語音辨識發生錯誤或未收到語音，請再試一次。");
+            };
+
+            recognition.onend = () => {
+                stopRecordingUI();
+            };
+        }
+
+        // Window load initialization
+        window.onload = function() {
+            initSpeechRecognition();
+            populateCategories();
+            filterVocabularyByCategory();
+            updateStatsDisplay();
+            renderVocabTable();
+        };
+
+        // Navigation tab switching
+        function switchTab(tabName) {
+            ['practice', 'vocab', 'stats'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).classList.remove('bg-white', 'text-indigo-700', 'shadow-sm');
+                document.getElementById(`nav-${t}`).classList.add('text-indigo-100', 'hover:text-white');
+            });
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabName}`);
+            activeNav.classList.remove('text-indigo-100', 'hover:text-white');
+            activeNav.classList.add('bg-white', 'text-indigo-700', 'shadow-sm');
+
+            if (tabName === 'vocab') renderVocabTable();
+            if (tabName === 'stats') updateStatsDisplay();
+        }
+
+        // Populate category dropdown
+        function populateCategories() {
+            const select = document.getElementById('category-select');
+            const categories = ['all', ...new Set(vocabulary.map(item => item.category))];
+            
+            select.innerHTML = categories.map(cat => `
+                <option value="${cat}">${cat === 'all' ? '全部主題' : cat}</option>
+            `).join('');
+        }
+
+        // Change category filter
+        function changeCategory() {
+            currentCategory = document.getElementById('category-select').value;
+            filterVocabularyByCategory();
+            currentIndex = 0;
+            loadCurrentCard();
+        }
+
+        function filterVocabularyByCategory() {
+            if (currentCategory === 'all') {
+                filteredVocabulary = [...vocabulary];
+            } else {
+                filteredVocabulary = vocabulary.filter(item => item.category === currentCategory);
+            }
+            document.getElementById('total-count').textContent = filteredVocabulary.length;
+        }
+
+        // Load current practice card
+        function loadCurrentCard() {
+            if (filteredVocabulary.length === 0) {
+                document.getElementById('target-word').textContent = "此分類尚無單字";
+                document.getElementById('target-translation').textContent = "請切換分類或新增單字";
+                document.getElementById('target-example').textContent = "";
+                document.getElementById('card-category-badge').textContent = "N/A";
+                document.getElementById('current-index').textContent = 0;
+                document.getElementById('total-count').textContent = 0;
+                document.getElementById('pagination-dots').innerHTML = "";
+                document.getElementById('feedback-container').classList.add('hidden');
+                return;
+            }
+
+            if (currentIndex >= filteredVocabulary.length) currentIndex = 0;
+            if (currentIndex < 0) currentIndex = filteredVocabulary.length - 1;
+
+            const item = filteredVocabulary[currentIndex];
+            document.getElementById('target-word').textContent = item.word;
+            document.getElementById('target-translation').textContent = item.translation;
+            document.getElementById('target-example').textContent = item.example || "無例句";
+            document.getElementById('card-category-badge').textContent = item.category;
+            document.getElementById('current-index').textContent = currentIndex + 1;
+            document.getElementById('total-count').textContent = filteredVocabulary.length;
+            
+            document.getElementById('feedback-container').classList.add('hidden');
+            renderPaginationDots();
+        }
+
+        function renderPaginationDots() {
+            const container = document.getElementById('pagination-dots');
+            let html = '';
+            for (let i = 0; i < Math.min(filteredVocabulary.length, 10); i++) {
+                const active = i === currentIndex ? 'bg-indigo-600 w-6' : 'bg-slate-300 w-2';
+                html += `<div class="h-2 rounded-full transition-all duration-300 ${active}"></div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function nextCard() {
+            if (filteredVocabulary.length === 0) return;
+            currentIndex = (currentIndex + 1) % filteredVocabulary.length;
+            loadCurrentCard();
+        }
+
+        function prevCard() {
+            if (filteredVocabulary.length === 0) return;
+            currentIndex = (currentIndex - 1 + filteredVocabulary.length) % filteredVocabulary.length;
+            loadCurrentCard();
+        }
+
+        function resetSessionProgress() {
+            currentIndex = 0;
+            loadCurrentCard();
+        }
+
+        // Speech Synthesis - Play pronunciation
+        function playTargetAudio() {
+            if (filteredVocabulary.length === 0) return;
+            const item = filteredVocabulary[currentIndex];
+            if (!('speechSynthesis' in window)) {
+                alert("您的瀏覽器不支援語音合成功能。");
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(item.word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9; // Slightly slower for learning
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Toggle Speech Recognition for shadowing practice
+        function toggleSpeechRecognition() {
+            if (!recognition) {
+                alert("您的瀏覽器不支援 Web Speech API 語音辨識功能（建議使用 Google Chrome）。");
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+                stopRecordingUI();
+            } else {
+                try {
+                    recognition.start();
+                    startRecordingUI();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        function startRecordingUI() {
+            isRecording = true;
+            const btn = document.getElementById('mic-btn');
+            const icon = document.getElementById('mic-icon');
+            const text = document.getElementById('mic-text');
+            
+            btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            btn.classList.add('bg-rose-600', 'hover:bg-rose-700', 'recording-pulse');
+            icon.className = "fa-solid fa-microphone-lines text-lg animate-bounce";
+            text.textContent = "聆聽中... 請跟讀";
+        }
+
+        function stopRecordingUI() {
+            isRecording = false;
+            const btn = document.getElementById('mic-btn');
+            const icon = document.getElementById('mic-icon');
+            const text = document.getElementById('mic-text');
+            
+            btn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'recording-pulse');
+            btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            icon.className = "fa-solid fa-microphone text-lg";
+            text.textContent = "按住或點擊跟讀";
+        }
+
+        // Process recognition result & compare
+        function processRecognitionResult(spokenText) {
+            const currentItem = filteredVocabulary[currentIndex];
+            const target = currentItem.word.toLowerCase().trim();
+            const spoken = spokenText.toLowerCase().trim();
+
+            // Calculate simple similarity or exact match
+            // Remove punctuation for cleaner comparison
+            const cleanTarget = target.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+            const cleanSpoken = spoken.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+
+            const isCorrect = cleanSpoken.includes(cleanTarget) || cleanTarget.includes(cleanSpoken) || levenshteinDistance(cleanTarget, cleanSpoken) <= 2;
+
+            // Update stats
+            stats.totalAttempts++;
+            if (isCorrect) {
+                stats.correctCount++;
+                currentItem.status = 'mastered';
+            } else {
+                currentItem.status = 'needs-practice';
+            }
+            saveData();
+            updateStatsDisplay();
+
+            // Show feedback
+            showFeedback(isCorrect, spokenText, isCorrect ? "太棒了！發音完全正確！" : "發音與標準答案有落差，再試一次看看！");
+        }
+
+        function showFeedback(isCorrect, spoken, message) {
+            const container = document.getElementById('feedback-container');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const spokenEl = document.getElementById('recognized-text');
+            const msgEl = document.getElementById('feedback-message');
+
+            container.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-200', 'bg-rose-50', 'border-rose-200');
+            
+            if (isCorrect) {
+                container.classList.add('bg-emerald-50', 'border-emerald-200');
+                icon.className = "fa-solid fa-circle-check text-emerald-600 text-xl";
+                title.textContent = "念對了！ (Correct)";
+                title.className = "font-bold text-lg text-emerald-800";
+            } else {
+                container.classList.add('bg-rose-50', 'border-rose-200');
+                icon.className = "fa-solid fa-circle-xmark text-rose-600 text-xl";
+                title.textContent = "念錯或不夠清晰 (Keep Practicing)";
+                title.className = "font-bold text-lg text-rose-800";
+            }
+
+            spokenEl.textContent = `"${spoken}"`;
+            msgEl.textContent = message;
+        }
+
+        // Levenshtein Distance helper for loose comparison
+        function levenshteinDistance(a, b) {
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+            for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) == a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        // Render Vocabulary Table
+        function renderVocabTable() {
+            const tbody = document.getElementById('vocab-table-body');
+            const query = document.getElementById('search-vocab').value.toLowerCase();
+            
+            const filtered = vocabulary.filter(item => 
+                item.word.toLowerCase().includes(query) || item.translation.toLowerCase().includes(query)
+            );
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">找不到符合的單字項目</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => {
+                let statusBadge = '<span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">未練習</span>';
+                if (item.status === 'mastered') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold">已精熟</span>';
+                } else if (item.status === 'needs-practice') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-semibold">需加強</span>';
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50/80 transition">
+                        <td class="p-4 font-bold text-slate-900 flex items-center space-x-2">
+                            <span>${item.word}</span>
+                            <button onclick="playAudio('${item.word}')" class="text-indigo-600 hover:text-indigo-800 p-1 rounded-lg transition" title="播放發音">
+                                <i class="fa-solid fa-volume-high text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="p-4 text-slate-600">${item.translation}</td>
+                        <td class="p-4"><span class="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">${item.category}</span></td>
+                        <td class="p-4">${statusBadge}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="deleteVocab(${item.id})" class="text-slate-400 hover:text-rose-600 p-1.5 transition" title="刪除">
+                                <i class="fa-solid fa-trash-can text-sm"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function playAudio(text) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function filterVocabList() {
+            renderVocabTable();
+        }
+
+        // Modal Controls
+        function openAddModal() {
+            document.getElementById('add-modal').classList.remove('hidden');
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.add('hidden');
+            document.getElementById('add-vocab-form').reset();
+        }
+
+        function saveCustomVocab(e) {
+            e.preventDefault();
+            const word = document.getElementById('new-word').value.trim();
+            const translation = document.getElementById('new-translation').value.trim();
+            const category = document.getElementById('new-category').value;
+            const example = document.getElementById('new-example').value.trim();
+
+            const newId = vocabulary.length > 0 ? Math.max(...vocabulary.map(i => i.id)) + 1 : 1;
+            vocabulary.push({ id: newId, word, translation, category, example, status: 'untested' });
+
+            saveData();
+            populateCategories();
+            filterVocabularyByCategory();
+            renderVocabTable();
+            closeAddModal();
+        }
+
+        function deleteVocab(id) {
+            if (confirm("確定要刪除這個單字項目嗎？")) {
+                vocabulary = vocabulary.filter(i => i.id !== id);
+                saveData();
+                populateCategories();
+                filterVocabularyByCategory();
+                renderVocabTable();
+                loadCurrentCard();
+            }
+        }
+
+        // Stats updates
+        function updateStatsDisplay() {
+            document.getElementById('stat-total-attempts').textContent = stats.totalAttempts;
+            document.getElementById('stat-correct-count').textContent = stats.correctCount;
+            
+            const accuracy = stats.totalAttempts > 0 ? Math.round((stats.correctCount / stats.totalAttempts) * 100) : 0;
+            document.getElementById('stat-accuracy').textContent = accuracy + '%';
+
+            const masteredCount = vocabulary.filter(i => i.status === 'mastered').length;
+            document.getElementById('stat-mastered').textContent = masteredCount;
+
+            const adviceEl = document.getElementById('stats-advice');
+            if (stats.totalAttempts === 0) {
+                adviceEl.innerHTML = `<i class="fa-solid fa-lightbulb mr-1.5 text-indigo-600"></i> 您尚未開始任何跟讀練習。請前往「聽讀練習」頁面點擊麥克風按鈕開始您的英文發音挑戰！`;
+            } else if (accuracy >= 80) {
+                adviceEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5 text-emerald-600"></i> 太棒了！您的發音正確率高達 <b>${accuracy}%</b>，表現優異！請繼續保持，挑戰更多單字。`;
+            } else {
+                adviceEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5 text-amber-600"></i> 目前發音正確率為 <b>${accuracy}%</b>。建議您可以先點擊「聆聽發音」多聽幾次母語發音，注意每個音節的重音與咬字後再進行跟讀練習。`;
+            }
+        }
+
+        function clearStats() {
+            if (confirm("確定要清除所有學習統計數據嗎？")) {
+                stats = { totalAttempts: 0, correctCount: 0 };
+                vocabulary.forEach(i => i.status = 'untested');
+                saveData();
+                updateStatsDisplay();
+                renderVocabTable();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('swp09_vocab', JSON.stringify(vocabulary));
+            localStorage.setItem('swp09_stats', JSON.stringify(stats));
+        }
+    </script>
+</body>
+</html>
